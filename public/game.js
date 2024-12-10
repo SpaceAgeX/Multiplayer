@@ -33,6 +33,21 @@ const keys = {
 const squareSize = 50;
 const speed = 5;
 
+// Performance monitoring
+let lastFrameTime = performance.now();
+let frameRate = 0;
+let ping = 0;
+
+// Start ping monitoring
+function updatePing() {
+    const start = Date.now();
+    socket.emit('ping-request', () => {
+        ping = Date.now() - start;
+        console.log(`Ping: ${ping}ms`);
+    });
+}
+setInterval(updatePing, 1000);
+
 // Initialize game when connected
 socket.on('init', (data) => {
     myId = data.id;
@@ -97,6 +112,13 @@ function update() {
         if (keys.a) dx -= speed;
         if (keys.d) dx += speed;
 
+        // Normalize diagonal movement
+        if (dx !== 0 && dy !== 0) {
+            const normalizer = 1 / Math.sqrt(2);
+            dx *= normalizer;
+            dy *= normalizer;
+        }
+
         // Apply movement with bounds checking
         if (dx !== 0 || dy !== 0) {
             const newX = player.x + dx;
@@ -126,11 +148,27 @@ function update() {
             ctx.fillRect(p.x, p.y, squareSize, squareSize);
             
             // Draw username
-            ctx.fillStyle = '#000';
-            ctx.font = 'bold 16px Arial';
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 18px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText(p.username || 'Player', p.x + squareSize/2, p.y - 10);
+            const displayText = p.username || 'Player';
+            const textX = p.x + squareSize/2;
+            const textY = p.y - 15;
+            ctx.fillText(displayText, textX, textY);
         });
+
+        // Calculate and display frame rate
+        const currentTime = performance.now();
+        const deltaTime = currentTime - lastFrameTime;
+        frameRate = Math.round(1000 / deltaTime);
+        lastFrameTime = currentTime;
+
+        // Draw performance stats
+        ctx.fillStyle = '#fff';
+        ctx.font = '16px Arial';
+        ctx.textAlign = 'right';
+        ctx.fillText(`FPS: ${frameRate}`, canvas.width - 20, 30);
+        ctx.fillText(`Ping: ${ping}ms`, canvas.width - 20, 55);
     }
     
     requestAnimationFrame(update);
