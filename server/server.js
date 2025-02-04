@@ -9,22 +9,27 @@ const io = socketIo(server);
 app.use(express.static('public'));
 
 let players = {};
-let itPlayer = null;
+const maxPlayers = 4;
+const playerColors = ["red", "green", "blue", "yellow"];
+let assignedColors = new Set();
 
 io.on('connection', (socket) => {
-    console.log(`Player connected: ${socket.id}`);
+    if (Object.keys(players).length >= maxPlayers) {
+        socket.disconnect();
+        return;
+    }
+
+    let availableColors = playerColors.filter(color => !assignedColors.has(color));
+    let playerColor = availableColors.length > 0 ? availableColors[0] : null;
+    if (playerColor) assignedColors.add(playerColor);
     
     players[socket.id] = {
         x: Math.random() * 500,
         y: Math.random() * 500,
-        radius: 10,
-        isIt: itPlayer === null
+        color: playerColor,
+        radius: 20
     };
     
-    if (itPlayer === null) {
-        itPlayer = socket.id;
-    }
-
     io.emit('updatePlayers', players);
     
     socket.on('move', (data) => {
@@ -34,29 +39,17 @@ io.on('connection', (socket) => {
             io.emit('updatePlayers', players);
         }
     });
-
-    socket.on('tag', (playerId) => {
-        if (players[socket.id] && players[playerId] && socket.id === itPlayer) {
-            itPlayer = playerId;
-            players[socket.id].isIt = false;
-            players[playerId].isIt = true;
-            io.emit('updatePlayers', players);
-        }
+    
+    socket.on('ping', (timestamp) => {
+        socket.emit('pong', Date.now() - timestamp);
     });
     
     socket.on('disconnect', () => {
-        console.log(`Player disconnected: ${socket.id}`);
-        delete players[socket.id];
-        if (itPlayer === socket.id) {
-            let keys = Object.keys(players);
-            if (keys.length > 0) {
-                itPlayer = keys[0];
-                players[itPlayer].isIt = true;
-            } else {
-                itPlayer = null;
-            }
+        if (players[socket.id]) {
+            assignedColors.delete(players[socket.id].color);
+            delete players[socket.id];
+            io.emit('updatePlayers', players);
         }
-        io.emit('updatePlayers', players);
     });
 });
 

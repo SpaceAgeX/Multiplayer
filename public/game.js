@@ -9,7 +9,7 @@ let keys = {};
 const speed = 5;
 const playerColors = ["red", "green", "blue", "yellow"];
 const maxPlayers = 4;
-const playerRadius = 20; // Increased the player size
+const playerRadius = 20;
 let assignedColors = new Set();
 
 let fps = 0, lastFrameTime = performance.now(), ping = 0;
@@ -29,15 +29,16 @@ socket.on('updatePlayers', (serverPlayers) => {
         } else {
             serverPlayers[id].color = players[id].color;
             assignedColors.add(players[id].color);
+            serverPlayers[id].x = players[id].x;
+            serverPlayers[id].y = players[id].y;
         }
-        serverPlayers[id].radius = playerRadius; // Ensure radius is properly assigned
     }
     players = serverPlayers;
     draw();
 });
 
-socket.on('pong', (serverPing) => {
-    ping = serverPing;
+socket.on('pong', () => {
+    ping = Date.now() - lastPingTime;
 });
 
 window.addEventListener('keydown', (event) => {
@@ -71,10 +72,13 @@ function gameLoop() {
         movement.x = Math.max(playerRadius, Math.min(canvas.width - playerRadius, player.x + movement.x));
         movement.y = Math.max(playerRadius, Math.min(canvas.height - playerRadius, player.y + movement.y));
         
+        players[socket.id].x = movement.x;
+        players[socket.id].y = movement.y;
         socket.emit('move', movement);
     }
     lastPingTime = Date.now();
-    socket.emit('ping', lastPingTime);
+    socket.emit('ping');
+    draw();
     requestAnimationFrame(gameLoop);
 }
 
