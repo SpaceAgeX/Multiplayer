@@ -6,7 +6,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "*", // Allow all origins (for now)
+        origin: "*", // Allow all origins
         methods: ["GET", "POST"]
     }
 });
@@ -14,18 +14,16 @@ const io = new Server(server, {
 // Serve static files from 'public'
 app.use(express.static('public'));
 
-app.use((req, res, next) => {
-    res.setHeader("Content-Security-Policy", "default-src 'self' 'unsafe-inline' https://vercel.live;");
-    next();
+// Catch-all route to serve index.html for unknown paths
+app.get('*', (req, res) => {
+    res.sendFile(__dirname + '/public/index.html');
 });
 
-
-// WebSocket logic
+// WebSocket handling
 io.on('connection', (socket) => {
     console.log(`Player connected: ${socket.id}`);
 
     socket.on('updatePosition', (data) => {
-        console.log(`Player ${socket.id} position: x=${data.x}, y=${data.y}, color=${data.color.toString(16)}, is_tagged=${data.is_tagged}`);
         socket.broadcast.emit('updatePosition', { 
             id: socket.id, 
             x: data.x, 
@@ -36,15 +34,14 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        console.log(`Player disconnected: ${socket.id}`);
         io.emit('removePlayer', socket.id);
     });
 });
 
-// Set port dynamically for Vercel
+// Use Vercel's dynamic port
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
 
-module.exports = app; // Required for Vercel
+module.exports = app; // Required for Vercel deployment

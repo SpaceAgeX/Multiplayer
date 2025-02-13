@@ -6,8 +6,5 @@
   "routes": [
     { "src": "/socket.io/(.*)", "dest": "server.js" },
     { "src": "/(.*)", "dest": "server.js" }
-  ],
-  "env": {
-    "VERCEL_FEEDBACK_DISABLED": "1"
-  }
+  ]
 }
