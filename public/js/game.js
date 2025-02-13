@@ -19,21 +19,15 @@ document.body.style.margin = "0"; // Remove default margin
 camera.position.set(0, 2, 10);
 camera.lookAt(0, 0, 0);
 
-// Add Light Source for Shadows
-const light = new THREE.DirectionalLight(0xffffff, 1);
-light.position.set(5, 10, 5); // Position the light above
-light.castShadow = true; // Enable shadows
+
 
 // Add Ambient Light for general brightness
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.3); // Soft white light, lower intensity
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); // Soft white light, lower intensity
 scene.add(ambientLight);
 
 // Configure shadow properties
-light.shadow.mapSize.width = 1024;
-light.shadow.mapSize.height = 1024;
-light.shadow.camera.near = 0.5;
-light.shadow.camera.far = 50;
-scene.add(light);
+
+
 
 // Import Player and StaticObject
 let player;
@@ -86,6 +80,8 @@ socket.on('updatePosition', (data) => {
         const material = new THREE.MeshStandardMaterial({ color: data.color });
         const mesh = new THREE.Mesh(geometry, material);
         mesh.position.set(data.x, data.y, 0);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
         scene.add(mesh);
 
         otherPlayers[data.id] = mesh;

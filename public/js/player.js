@@ -19,6 +19,7 @@ class Player {
 
         // Enable shadow casting
         this.mesh.castShadow = true;
+        this.mesh.receiveShadow = true;
 
         scene.add(this.mesh);
 
