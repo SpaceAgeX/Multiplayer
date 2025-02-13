@@ -6,7 +6,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "*", // Allow all origins
+        origin: "*", 
         methods: ["GET", "POST"]
     }
 });
@@ -14,14 +14,23 @@ const io = new Server(server, {
 // Serve static files from 'public'
 app.use(express.static('public'));
 
-// Catch-all route to serve index.html for unknown paths
-app.get('*', (req, res) => {
-    res.sendFile(__dirname + '/public/index.html');
-});
+let firstPlayer = null;
 
-// WebSocket handling
 io.on('connection', (socket) => {
     console.log(`Player connected: ${socket.id}`);
+
+    if (!firstPlayer) {
+        firstPlayer = socket.id;
+    }
+
+    socket.emit('assignTag', { is_tagged: socket.id === firstPlayer });
+
+    socket.on('tagPlayer', (data) => {
+        if (socket.id === firstPlayer) {
+            firstPlayer = data.id;
+            io.emit('assignTag', { is_tagged: firstPlayer });
+        }
+    });
 
     socket.on('updatePosition', (data) => {
         socket.broadcast.emit('updatePosition', { 
@@ -29,17 +38,23 @@ io.on('connection', (socket) => {
             x: data.x, 
             y: data.y, 
             color: data.color, 
-            is_tagged: data.is_tagged 
+            is_tagged: socket.id === firstPlayer 
         });
     });
 
     socket.on('disconnect', () => {
         io.emit('removePlayer', socket.id);
+        if (socket.id === firstPlayer) {
+            let remainingPlayers = Object.keys(io.sockets.sockets);
+            firstPlayer = remainingPlayers.length > 0 ? remainingPlayers[0] : null;
+            io.emit('assignTag', { is_tagged: firstPlayer });
+        }
     });
 });
 
-// Use Vercel's dynamic port
-const PORT = process.env.PORT || 3000;
+
+// Use port 3000 locally
+const PORT = 3000;
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });

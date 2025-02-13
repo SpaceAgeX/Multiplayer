@@ -10,6 +10,7 @@ class Player {
         // Random color for each player
         this.color = Math.random() * 0xffffff;
         this.is_tagged = false; // Default: not tagged
+        this.itIndicator = null; // The pyramid above "It"
 
         // Create Player (Blue Sphere)
         this.geometry = new THREE.SphereGeometry(0.5, 16, 16);
@@ -31,6 +32,36 @@ class Player {
         window.addEventListener('keyup', (event) => {
             this.keys[event.key.toLowerCase()] = false;
         });
+        
+    }
+
+    setTagged(isTagged) {
+        this.is_tagged = isTagged;
+    
+        if (isTagged) {
+            this.addItIndicator();
+        } else {
+            this.removeItIndicator();
+        }
+    }
+    
+
+    addItIndicator() {
+        if (this.itIndicator) return; // Prevent duplicate indicators
+
+        const pyramidGeometry = new THREE.ConeGeometry(0.3, 0.5, 3);
+        const pyramidMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+        this.itIndicator = new THREE.Mesh(pyramidGeometry, pyramidMaterial);
+        this.itIndicator.position.set(0, 1.25, 2); // Above the player
+        this.itIndicator.rotation.set(Math.PI, 0, 0); // Flip it upside down
+        this.mesh.add(this.itIndicator);
+    }
+
+    removeItIndicator() {
+        if (this.itIndicator) {
+            this.mesh.remove(this.itIndicator);
+            this.itIndicator = null;
+        }
     }
 
     update(staticObjects) {
@@ -68,6 +99,8 @@ class Player {
             this.velocityY = this.jumpStrength;
             this.isOnGround = false;
         }
+
+       
     }
 
     checkCollision(staticObjects, newX, newY) {
@@ -89,4 +122,24 @@ class Player {
         }
         return false; // No collision
     }
+
+    checkPlayerCollision(otherPlayers) {
+        for (const id in otherPlayers) {
+            let other = otherPlayers[id];
+    
+            // Ensure it's a different player
+            if (other === this) continue;
+    
+            // Get distance between players
+            let dx = this.mesh.position.x - other.mesh.position.x;
+            let dy = this.mesh.position.y - other.mesh.position.y;
+            let distance = Math.sqrt(dx * dx + dy * dy);
+    
+            if (distance < 1.0) { // If close enough to tag
+                return other;
+            }
+        }
+        return null;
+    }
+    
 }

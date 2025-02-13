@@ -5,6 +5,9 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gameCanvas') });
 
+//UI
+const ui = new UI();
+
 // Enable Shadows
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap; // High-quality shadows
@@ -22,7 +25,7 @@ camera.lookAt(0, 0, 0);
 
 
 // Add Ambient Light for general brightness
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); // Soft white light, lower intensity
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); // Soft white light, lower intensity
 scene.add(ambientLight);
 
 // Configure shadow properties
@@ -50,12 +53,18 @@ window.addEventListener('load', () => {
 
 function update() {
     let now = performance.now();
-    let deltaTime = (now - lastFrameTime) / 1000; // Convert milliseconds to seconds
-    lastFrameTime = now; // Update last frame time
+    let deltaTime = (now - lastFrameTime) / 1000;
+    lastFrameTime = now;
 
-    player.update(staticObjects, deltaTime); // Pass deltaTime to player
+    player.update(staticObjects, deltaTime);
 
-    // Send the player's position, color, and is_tagged status to the server
+    if (player.is_tagged) {
+        let taggedPlayer = player.checkPlayerCollision(otherPlayers);
+        if (taggedPlayer) {
+            socket.emit("tagPlayer", { id: taggedPlayer.id });
+        }
+    }
+
     socket.emit('updatePosition', {
         x: player.mesh.position.x,
         y: player.mesh.position.y,
@@ -63,33 +72,50 @@ function update() {
         is_tagged: player.is_tagged
     });
 
-    // Make the camera follow the player
     camera.position.y = player.mesh.position.y + 2;
     camera.position.x = player.mesh.position.x;
 
     renderer.render(scene, camera);
+    ui.updateUI(); // Update FPS & Ping display
     requestAnimationFrame(update);
 }
 
+socket.on('tagged', (data) => {
+    if (player.mesh.position.x === data.x && player.mesh.position.y === data.y) {
+        player.setTagged(true);
+    } else {
+        player.setTagged(false);
+    }
+});
+
+
+socket.on('assignTag', (data) => {
+    if (!player) {
+        console.error("Player instance is missing!");
+        return;
+    }
+
+    console.log("Assigning tag status:", data.is_tagged);
+    player.setTagged(data.is_tagged);
+});
+
+
+// Update player status when receiving positions
 socket.on('updatePosition', (data) => {
-    if (data.id === socket.id) return; // Ignore updates for the local player
+    if (data.id === socket.id) return; // Ignore local player updates
 
     if (!otherPlayers[data.id]) {
-        // Create a new sphere for the other player
-        const geometry = new THREE.SphereGeometry(0.5, 16, 16);
-        const material = new THREE.MeshStandardMaterial({ color: data.color });
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(data.x, data.y, 0);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        scene.add(mesh);
-
-        otherPlayers[data.id] = mesh;
+        const newPlayer = new Player(scene);
+        newPlayer.mesh.position.set(data.x, data.y, 0);
+        scene.add(newPlayer.mesh);
+        otherPlayers[data.id] = newPlayer;
     } else {
-        // Update existing player's position
-        otherPlayers[data.id].position.set(data.x, data.y, 0);
+        otherPlayers[data.id].mesh.position.set(data.x, data.y, 0);
     }
-})
+
+    otherPlayers[data.id].setTagged(data.is_tagged);
+});
+
 
 socket.on('removePlayer', (id) => {
     if (otherPlayers[id]) {
