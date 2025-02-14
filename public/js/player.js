@@ -1,18 +1,17 @@
 class Player {
-    constructor(scene) {
-        this.speed = 0.2;
-        this.jumpStrength = 0.3;
-        this.gravity = -0.01;
+    constructor(scene, color) {
+        this.speed = 15;
+        this.jumpStrength = 0.007;
+        this.gravity = -0.75;
         this.velocityY = 0;
         this.isOnGround = false;
         this.keys = {};
 
-        // Random color for each player
-        this.color = Math.random() * 0xffffff;
-        this.is_tagged = false; // Default: not tagged
+        this.color = color;
+        this.is_tagged = true; // Default to true for now
         this.itIndicator = null; // The pyramid above "It"
 
-        // Create Player (Blue Sphere)
+        // Create Player (Sphere)
         this.geometry = new THREE.SphereGeometry(0.5, 16, 16);
         this.material = new THREE.MeshStandardMaterial({ color: this.color });
         this.mesh = new THREE.Mesh(this.geometry, this.material);
@@ -24,6 +23,11 @@ class Player {
 
         scene.add(this.mesh);
 
+        // Add indicator on spawn
+        if (this.is_tagged) {
+            this.addItIndicator();
+        }
+
         // Keyboard Events
         window.addEventListener('keydown', (event) => {
             this.keys[event.key.toLowerCase()] = true;
@@ -32,9 +36,7 @@ class Player {
         window.addEventListener('keyup', (event) => {
             this.keys[event.key.toLowerCase()] = false;
         });
-        
     }
-
     setTagged(isTagged) {
         this.is_tagged = isTagged;
     
@@ -45,14 +47,13 @@ class Player {
         }
     }
     
-
     addItIndicator() {
         if (this.itIndicator) return; // Prevent duplicate indicators
 
         const pyramidGeometry = new THREE.ConeGeometry(0.3, 0.5, 3);
         const pyramidMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
         this.itIndicator = new THREE.Mesh(pyramidGeometry, pyramidMaterial);
-        this.itIndicator.position.set(0, 1.25, 2); // Above the player
+        this.itIndicator.position.set(0, 1.25, 0); // Positioned above the player
         this.itIndicator.rotation.set(Math.PI, 0, 0); // Flip it upside down
         this.mesh.add(this.itIndicator);
     }
@@ -64,7 +65,7 @@ class Player {
         }
     }
 
-    update(staticObjects) {
+    update(staticObjects, deltaTime) {
         let moveX = 0;
 
         // Horizontal movement (A/D)
@@ -76,10 +77,12 @@ class Player {
             moveX = (moveX / Math.abs(moveX)) * this.speed;
         }
 
-        // Gravity
-        this.velocityY += this.gravity;
+        // Apply deltaTime to movement
+        let newX = this.mesh.position.x + moveX * deltaTime;
+
+        // Apply gravity with deltaTime
+        this.velocityY += this.gravity * deltaTime;
         let newY = this.mesh.position.y + this.velocityY;
-        let newX = this.mesh.position.x + moveX;
 
         // Collision Detection
         if (!this.checkCollision(staticObjects, newX, this.mesh.position.y)) {
@@ -94,13 +97,11 @@ class Player {
             this.isOnGround = true;
         }
 
-        // Jumping
+        // Jumping with deltaTime scaling
         if (this.keys['w'] && this.isOnGround) {
-            this.velocityY = this.jumpStrength;
+            this.velocityY = this.jumpStrength / deltaTime;
             this.isOnGround = false;
         }
-
-       
     }
 
     checkCollision(staticObjects, newX, newY) {
@@ -108,9 +109,9 @@ class Player {
             const bounds = obj.getBounds();
 
             // Player's bounding box
-            const playerRadius = 0.5; // Player's size (Sphere)
-            const buffer = 0.05; // Small buffer to avoid clipping
-            
+            const playerRadius = 0.5;
+            const buffer = 0.05;
+
             if (
                 newX + playerRadius > bounds.x - bounds.width / 2 - buffer &&
                 newX - playerRadius < bounds.x + bounds.width / 2 + buffer &&
@@ -122,24 +123,4 @@ class Player {
         }
         return false; // No collision
     }
-
-    checkPlayerCollision(otherPlayers) {
-        for (const id in otherPlayers) {
-            let other = otherPlayers[id];
-    
-            // Ensure it's a different player
-            if (other === this) continue;
-    
-            // Get distance between players
-            let dx = this.mesh.position.x - other.mesh.position.x;
-            let dy = this.mesh.position.y - other.mesh.position.y;
-            let distance = Math.sqrt(dx * dx + dy * dy);
-    
-            if (distance < 1.0) { // If close enough to tag
-                return other;
-            }
-        }
-        return null;
-    }
-    
 }

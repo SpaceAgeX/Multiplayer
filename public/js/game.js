@@ -5,7 +5,7 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gameCanvas') });
 
-//UI
+// UI
 const ui = new UI();
 
 // Enable Shadows
@@ -22,53 +22,56 @@ document.body.style.margin = "0"; // Remove default margin
 camera.position.set(0, 2, 10);
 camera.lookAt(0, 0, 0);
 
-
-
 // Add Ambient Light for general brightness
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); // Soft white light, lower intensity
 scene.add(ambientLight);
-
-// Configure shadow properties
-
-
 
 // Import Player and StaticObject
 let player;
 let otherPlayers = {};
 let staticObjects = [];
-
 let lastFrameTime = performance.now(); // Store last frame timestamp
 
 window.addEventListener('load', () => {
-    let playerSpawn = generateMap(scene, staticObjects);
-
-    // Initialize player at spawn position
-    player = new Player(scene);
-    player.mesh.position.set(playerSpawn.x, playerSpawn.y, playerSpawn.z)
-
-    update();
+    // Request player color from server before initializing player
+    socket.emit("requestColor");
 });
 
+socket.on("playerColor", (data) => {
+    console.log(`Received color from server: ${data.color}`);
+    
+    // Generate map only once here
+    let playerSpawn = generateMap(scene, staticObjects);
+    
+    // Initialize player with assigned color
+    player = new Player(scene, data.color);
+    player.mesh.position.set(playerSpawn.x, playerSpawn.y, playerSpawn.z);
+    scene.add(player.mesh);
 
+    update(); // Start game loop
+});
 
 function update() {
+    if (!player) return; // Ensure player is initialized before updating
+
     let now = performance.now();
     let deltaTime = (now - lastFrameTime) / 1000;
     lastFrameTime = now;
 
     player.update(staticObjects, deltaTime);
 
-    if (player.is_tagged) {
-        let taggedPlayer = player.checkPlayerCollision(otherPlayers);
-        if (taggedPlayer) {
-            socket.emit("tagPlayer", { id: taggedPlayer.id });
-        }
-    }
+    // if (player.is_tagged) {
+    //     let taggedPlayer = player.checkPlayerCollision(otherPlayers);
+    //     if (taggedPlayer) {
+    //         socket.emit("tagPlayer", { id: taggedPlayer.id });
+    //     }
+    // }
 
     socket.emit('updatePosition', {
+        id: socket.id,
         x: player.mesh.position.x,
         y: player.mesh.position.y,
-        color: player.color,
+        color: player.color, // Ensure color is always sent
         is_tagged: player.is_tagged
     });
 
@@ -80,35 +83,25 @@ function update() {
     requestAnimationFrame(update);
 }
 
-socket.on('tagged', (data) => {
-    if (player.mesh.position.x === data.x && player.mesh.position.y === data.y) {
-        player.setTagged(true);
-    } else {
-        player.setTagged(false);
-    }
-});
-
-
 socket.on('assignTag', (data) => {
-    if (!player) {
-        console.error("Player instance is missing!");
-        return;
+    if (player) {
+        player.setTagged(socket.id === data.id);
     }
 
-    console.log("Assigning tag status:", data.is_tagged);
-    player.setTagged(data.is_tagged);
+    // Ensure all other players update their tag indicator
+    for (const id in otherPlayers) {
+        if (otherPlayers[id]) {
+            otherPlayers[id].setTagged(id === data.id);
+        }
+    }
 });
 
-
-// Update player status when receiving positions
+// When receiving position updates, also update tag status
 socket.on('updatePosition', (data) => {
-    if (data.id === socket.id) return; // Ignore local player updates
-
     if (!otherPlayers[data.id]) {
-        const newPlayer = new Player(scene);
-        newPlayer.mesh.position.set(data.x, data.y, 0);
-        scene.add(newPlayer.mesh);
-        otherPlayers[data.id] = newPlayer;
+        otherPlayers[data.id] = new Player(scene, data.color);
+        otherPlayers[data.id].mesh.position.set(data.x, data.y, 0);
+        scene.add(otherPlayers[data.id].mesh);
     } else {
         otherPlayers[data.id].mesh.position.set(data.x, data.y, 0);
     }
@@ -119,7 +112,8 @@ socket.on('updatePosition', (data) => {
 
 socket.on('removePlayer', (id) => {
     if (otherPlayers[id]) {
-        scene.remove(otherPlayers[id]); // Remove from scene
-        delete otherPlayers[id]; // Remove from object tracking
+        scene.remove(otherPlayers[id].mesh); // Remove player sphere from scene
+        delete otherPlayers[id]; // Remove from tracking
+        console.log(`Removed player: ${id}`);
     }
 });

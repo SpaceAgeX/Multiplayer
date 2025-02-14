@@ -11,52 +11,70 @@ const io = new Server(server, {
     }
 });
 
-// Serve static files from 'public'
-app.use(express.static('public'));
+app.use(express.static('public')); // Serve frontend files
 
-let firstPlayer = null;
+let players = {};
+let firstPlayer = null; // Track the first player who joins
 
 io.on('connection', (socket) => {
     console.log(`Player connected: ${socket.id}`);
 
+    // Assign the first player to be "It"
     if (!firstPlayer) {
         firstPlayer = socket.id;
     }
 
-    socket.emit('assignTag', { is_tagged: socket.id === firstPlayer });
+    // Store player data
+    players[socket.id] = {
+        id: socket.id,
+        color: Math.random() * 0xffffff,
+        is_tagged: socket.id === firstPlayer // First player is "It"
+    };
 
-    socket.on('tagPlayer', (data) => {
-        if (socket.id === firstPlayer) {
-            firstPlayer = data.id;
-            io.emit('assignTag', { is_tagged: firstPlayer });
-        }
-    });
+    // Send the current players to the new connection
+    socket.emit('currentPlayers', players);
 
+    // Notify everyone of the new player
+    io.emit('newPlayer', players[socket.id]);
+
+    // Assign "It" role to the first player
+    socket.emit('assignTag', { id: firstPlayer });
+
+    // Handle player movement updates
     socket.on('updatePosition', (data) => {
-        socket.broadcast.emit('updatePosition', { 
-            id: socket.id, 
-            x: data.x, 
-            y: data.y, 
-            color: data.color, 
-            is_tagged: socket.id === firstPlayer 
-        });
-    });
+        if (players[socket.id]) {
+            players[socket.id].x = data.x;
+            players[socket.id].y = data.y;
+            players[socket.id].is_tagged = socket.id === firstPlayer;
 
-    socket.on('disconnect', () => {
-        io.emit('removePlayer', socket.id);
-        if (socket.id === firstPlayer) {
-            let remainingPlayers = Object.keys(io.sockets.sockets);
-            firstPlayer = remainingPlayers.length > 0 ? remainingPlayers[0] : null;
-            io.emit('assignTag', { is_tagged: firstPlayer });
+            io.emit('updatePosition', players[socket.id]);
         }
     });
+
+    // Handle tagging (when "It" touches another player)
+    socket.on('tagPlayer', (data) => {
+        if (socket.id === firstPlayer && players[data.id]) {
+            firstPlayer = data.id; // Transfer "It" to the tagged player
+            io.emit('assignTag', { id: firstPlayer }); // Notify all players
+        }
+    });
+
+    // Handle player disconnecting
+    socket.on('disconnect', () => {
+        console.log(`Player disconnected: ${socket.id}`);
+        delete players[socket.id];
+
+        // If "It" leaves, assign a new "It"
+        if (socket.id === firstPlayer) {
+            let playerIds = Object.keys(players);
+            firstPlayer = playerIds.length > 0 ? playerIds[0] : null;
+            io.emit('assignTag', { id: firstPlayer });
+        }
+
+        io.emit('removePlayer', socket.id);
+    });
 });
 
-
-// Use port 3000 locally
-const PORT = 3000;
-server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+server.listen(3000, () => {
+    console.log('Server running on port 3000');
 });
-
-module.exports = app; // Required for Vercel deployment
