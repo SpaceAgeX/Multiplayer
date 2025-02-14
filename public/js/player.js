@@ -1,7 +1,7 @@
 class Player {
     constructor(scene, color) {
-        this.speed = 15;
-        this.jumpStrength = 0.007;
+        this.speed = 13;
+        this.jumpStrength = 0.006;
         this.gravity = -0.75;
         this.velocityY = 0;
         this.isOnGround = false;
