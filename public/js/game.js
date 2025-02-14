@@ -60,10 +60,15 @@ function update() {
 
     if (player.is_tagged) {
         let taggedPlayer = player.checkPlayerCollision(otherPlayers);
-        if (taggedPlayer) {
+        
+        if (taggedPlayer && taggedPlayer.mesh) {
+            console.log(`Player ${taggedPlayer.id} was tagged!`);
             socket.emit("tagPlayer", { id: taggedPlayer.id });
+        } else {
+            console.warn("No valid player found for tagging.");
         }
     }
+    
 
     socket.emit('updatePosition', {
         id: socket.id,

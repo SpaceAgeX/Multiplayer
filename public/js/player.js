@@ -40,10 +40,13 @@ class Player {
     
         if (isTagged) {
             this.addItIndicator();
+            console.log("This player is IT!");
         } else {
             this.removeItIndicator();
         }
     }
+    
+    
     
 
     addItIndicator() {
@@ -52,7 +55,7 @@ class Player {
         const pyramidGeometry = new THREE.ConeGeometry(0.3, 0.5, 3);
         const pyramidMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
         this.itIndicator = new THREE.Mesh(pyramidGeometry, pyramidMaterial);
-        this.itIndicator.position.set(0, 1.25, 2); // Above the player
+        this.itIndicator.position.set(0, 1.25, 0); // Above the player
         this.itIndicator.rotation.set(Math.PI, 0, 0); // Flip it upside down
         this.mesh.add(this.itIndicator);
     }
@@ -127,19 +130,20 @@ class Player {
         for (const id in otherPlayers) {
             let other = otherPlayers[id];
     
-            // Ensure it's a different player
-            if (other === this) continue;
+            if (!other || !other.mesh) continue; // Ensure valid player object
+            if (other === this) continue; // Skip self
     
-            // Get distance between players
             let dx = this.mesh.position.x - other.mesh.position.x;
             let dy = this.mesh.position.y - other.mesh.position.y;
             let distance = Math.sqrt(dx * dx + dy * dy);
     
-            if (distance < 1.0) { // If close enough to tag
+            if (distance < 1.0) { // Adjust if needed
+                console.log(`Collision detected with player ${id}`);
                 return other;
             }
         }
         return null;
     }
+    
     
 }
