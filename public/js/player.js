@@ -1,8 +1,8 @@
 class Player {
     constructor(scene, color) {
         this.speed = 13;
-        this.jumpStrength = 0.3;
-        this.gravity = -0.01;
+        this.jumpStrength = 0.15;
+        this.gravity = -0.35;
         this.velocityY = 0;
         this.isOnGround = false;
         this.keys = {};
@@ -22,6 +22,8 @@ class Player {
         this.mesh.castShadow = true;
         this.mesh.receiveShadow = true;
 
+        this.prevCollisions = new Set();
+
         scene.add(this.mesh);
 
         // Keyboard Events
@@ -39,12 +41,14 @@ class Player {
         this.is_tagged = isTagged;
     
         if (isTagged) {
+            console.log(`🏆 This player (${this.color}) is now IT!`);
             this.addItIndicator();
-            console.log("This player is IT!");
         } else {
+            console.log(`❌ This player (${this.color}) is no longer IT.`);
             this.removeItIndicator();
         }
     }
+    
     
     
     
@@ -80,7 +84,7 @@ class Player {
         }
 
         // Gravity
-        this.velocityY += this.gravity;
+        this.velocityY += this.gravity*deltaTime;
         let newY = this.mesh.position.y + this.velocityY;
         let newX = this.mesh.position.x + moveX*deltaTime;
 
@@ -127,23 +131,29 @@ class Player {
     }
 
     checkPlayerCollision(otherPlayers) {
+        let newlyCollided = null;
+
         for (const id in otherPlayers) {
             let other = otherPlayers[id];
-    
-            if (!other || !other.mesh) continue; // Ensure valid player object
-            if (other === this) continue; // Skip self
-    
+            if (!other || !other.mesh || other === this) continue; // Ensure valid player object
+
             let dx = this.mesh.position.x - other.mesh.position.x;
             let dy = this.mesh.position.y - other.mesh.position.y;
             let distance = Math.sqrt(dx * dx + dy * dy);
-    
-            if (distance < 1.0) { // Adjust if needed
-                console.log(`Collision detected with player ${id}`);
-                return other;
+
+            if (distance < 1.0) {
+                if (!this.prevCollisions.has(id)) { // ✅ Only return if first entry
+                    console.log(`✅ First-time collision detected with player ${id}!`);
+                    newlyCollided = id;
+                }
+                this.prevCollisions.add(id); // ✅ Add to tracked collisions
+            } else {
+                this.prevCollisions.delete(id); // ✅ Remove from tracked collisions if they leave
             }
         }
-        return null;
+        return newlyCollided; // ✅ Only return the first-time collision
     }
+    
     
     
 }

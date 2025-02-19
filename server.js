@@ -21,43 +21,61 @@ let players = {}; // Global object to track all connected players
 io.on('connection', (socket) => {
     console.log(`Player connected: ${socket.id}`);
 
+    // If there's no first player yet, assign this player as "It"
+    if (!firstPlayer) {
+        firstPlayer = socket.id;
+    }
 
-    // Ensure players object exists and assign a unique color
+    // Assign player data
     players[socket.id] = {
         id: socket.id,
         x: 0,
         y: 0,
-        color: Math.floor(Math.random() * 0xffffff), // Fixed color assigned
+        color: Math.floor(Math.random() * 0xffffff), // Random color
         is_tagged: socket.id === firstPlayer
     };
 
-    // ✅ Send the assigned color to the client
+    // ✅ Send assigned color to the client
     socket.emit("playerColor", { color: players[socket.id].color });
 
     // ✅ Send the entire players list to the new player
     socket.emit("currentPlayers", players);
 
-    // ✅ Notify all players about the new player (ensuring the correct color)
+    // ✅ Notify all players about the new player
     io.emit("newPlayer", players[socket.id]);
 
+    // ✅ Ensure the first player gets the "It" status
+    socket.emit('assignTag', { id: firstPlayer });
+
+
     
-    if (!firstPlayer) {
-        firstPlayer = socket.id;
-    }
 
     socket.on('pingTest', (callback) => {
         callback(); // Respond immediately to measure latency
     });
     
 
-    socket.emit('assignTag', { is_tagged: socket.id === firstPlayer });
+    
 
     socket.on('tagPlayer', (data) => {
+      
+        console.log(`🔴 Player ${socket.id} tagged Player ${data.id}`);
+    
+        if (typeof data.id !== "string" || !players[data.id]) {  
+            console.error(`❌ Error: Attempted to tag non-existent player ${data.id}`);
+            return;
+        }
+    
         if (socket.id === firstPlayer) {
-            firstPlayer = data.id;
-            io.emit('assignTag', { is_tagged: firstPlayer });
+            firstPlayer = data.id; // ✅ Assign new "It"
+            io.emit('assignTag', { id: firstPlayer });
+    
+            console.log(`🟢 New "It" player is ${firstPlayer}`);
         }
     });
+    
+    
+    
 
     socket.on('updatePosition', (data) => {
         socket.broadcast.emit('updatePosition', { 

@@ -31,6 +31,8 @@ let player;
 let otherPlayers = {};
 let staticObjects = [];
 let lastFrameTime = performance.now(); // Store last frame timestamp
+let lastTagTime = 0; // Global tag cooldown timer
+
 
 window.addEventListener('load', () => {
     socket.emit("requestColor"); // Request assigned color from server
@@ -59,15 +61,17 @@ function update() {
     player.update(staticObjects, deltaTime);
 
     if (player.is_tagged) {
-        let taggedPlayer = player.checkPlayerCollision(otherPlayers);
-        
-        if (taggedPlayer && taggedPlayer.mesh) {
-            console.log(`Player ${taggedPlayer.id} was tagged!`);
-            socket.emit("tagPlayer", { id: taggedPlayer.id });
+        let taggedPlayerId = player.checkPlayerCollision(otherPlayers); // ✅ Now this returns an ID string
+    
+        if (taggedPlayerId) { 
+            console.log(`✅ Player ${taggedPlayerId} was tagged! Sending event to server.`);
+            socket.emit("tagPlayer", { id: taggedPlayerId }); // ✅ Sends just the ID now
         } else {
-            console.warn("No valid player found for tagging.");
+            console.warn("⚠ No valid player found for tagging. Skipping.");
         }
     }
+    
+    
     
 
     socket.emit('updatePosition', {
@@ -87,16 +91,25 @@ function update() {
 }
 
 socket.on('assignTag', (data) => {
+    console.log(`🔄 Received "It" assignment: ${data.id}`);
+
+    if (!data.id) {
+        console.error("❌ Error: Received undefined 'It' player!");
+        return;
+    }
+
     if (player) {
         player.setTagged(socket.id === data.id);
     }
-    
+
     for (const id in otherPlayers) {
         if (otherPlayers[id]) {
             otherPlayers[id].setTagged(data.id === id);
         }
     }
 });
+
+
 
 socket.on('updatePosition', (data) => {
     if (!otherPlayers[data.id]) {
