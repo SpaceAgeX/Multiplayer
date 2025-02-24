@@ -1,14 +1,23 @@
 class StaticObject {
-    constructor(scene, width, height, depth, color, position) {
+    constructor(scene, width, height, depth, color, positions) {
         this.geometry = new THREE.BoxGeometry(width, height, depth);
-        this.material = new THREE.MeshStandardMaterial({ color }); // Supports shadows
-        this.mesh = new THREE.Mesh(this.geometry, this.material);
-        this.mesh.position.set(position.x, position.y, position.z);
+        this.material = new THREE.MeshStandardMaterial({ color });
 
-        // Enable shadows
-        this.mesh.castShadow = true;  // Cast shadows onto other objects
-        this.mesh.receiveShadow = true; // Receive shadows from other objects
+        if (Array.isArray(positions)) {
+            this.mesh = new THREE.InstancedMesh(this.geometry, this.material, positions.length);
+            positions.forEach((pos, i) => {
+                const matrix = new THREE.Matrix4();
+                matrix.setPosition(pos.x, pos.y, pos.z);
+                this.mesh.setMatrixAt(i, matrix);
+            });
+            this.mesh.instanceMatrix.needsUpdate = true;
+        } else {
+            this.mesh = new THREE.Mesh(this.geometry, this.material);
+            this.mesh.position.set(positions.x, positions.y, positions.z);
+        }
 
+        this.mesh.castShadow = true;
+        this.mesh.receiveShadow = true;
         scene.add(this.mesh);
     }
 

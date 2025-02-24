@@ -1,6 +1,6 @@
 class Block extends StaticObject {
-    constructor(scene, position) {
-        super(scene, 1, 1, 1, 0x888888, position); // Default gray color
+    constructor(scene, position, width) {
+        super(scene, width, 1, 1, 0x888888, position);
     }
 }
 
@@ -55,27 +55,37 @@ function createLight(scene, position) {
 
 
 
-// Function to load the map and find player spawn
+
+
 function generateMap(scene, staticObjects) {
     let playerSpawn = { x: 0, y: 0, z: 0 }; // Default spawn position
 
     for (let y = 0; y < mapData.length; y++) {
-        for (let x = 0; x < mapData[y].length; x++) {
-            let position = { x: x - 16, y: (-y + 16) * 2, z: 0 }; // Adjust map positioning
-
+        let x = 0;
+        while (x < mapData[y].length) {
             if (mapData[y][x] === 1) {
-                staticObjects.push(new Block(scene, position));
+                let startX = x;
+                while (x < mapData[y].length && mapData[y][x] === 1) {
+                    x++; // Count contiguous blocks
+                }
+                let width = x - startX;
+                let position = { x: startX - 16 + width / 2, y: (-y + 16) * 2, z: 0 };
+                staticObjects.push(new Block(scene, position, width));
             } else if (mapData[y][x] === -1) {
-                playerSpawn = position; // Set player spawn position
+                playerSpawn = { x: x - 16, y: (-y + 16) * 2, z: 0 };
+                x++;
             } else if (mapData[y][x] === 2) {
-                let position = { x: x - 16, y: (-y + 15.75) * 2, z: 0 };
+                let position = { x: x - 15.5, y: (-y + 15.75) * 2, z: 0 };
                 staticObjects.push(new Wall(scene, position));
+                x++;
             } else if (mapData[y][x] === -2) {
-                createLight(scene, position); // Create a light source
+                createLight(scene, { x: x - 16, y: (-y + 16) * 2, z: 0 });
+                x++;
+            } else {
+                x++;
             }
         }
     }
-
     return playerSpawn;
 }
 

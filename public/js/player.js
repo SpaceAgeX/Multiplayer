@@ -1,8 +1,8 @@
 class Player {
     constructor(scene, color) {
         this.speed = 13;
-        this.jumpStrength = 0.15;
-        this.gravity = -0.35;
+        this.jumpStrength = 10;
+        this.gravity = -11;
         this.velocityY = 0;
         this.isOnGround = false;
         this.keys = {};
@@ -85,7 +85,7 @@ class Player {
 
         // Gravity
         this.velocityY += this.gravity*deltaTime;
-        let newY = this.mesh.position.y + this.velocityY;
+        let newY = this.mesh.position.y + this.velocityY*deltaTime;
         let newX = this.mesh.position.x + moveX*deltaTime;
 
         // Collision Detection

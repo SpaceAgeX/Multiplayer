@@ -22,6 +22,8 @@ document.body.style.margin = "0"; // Remove default margin
 camera.position.set(0, 2, 10);
 camera.lookAt(0, 0, 0);
 
+
+
 // Add Ambient Light for general brightness
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); // Soft white light, lower intensity
 scene.add(ambientLight);
