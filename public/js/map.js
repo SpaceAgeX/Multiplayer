@@ -54,9 +54,6 @@ function createLight(scene, position) {
 }
 
 
-
-
-
 function generateMap(scene, staticObjects) {
     let playerSpawn = { x: 0, y: 0, z: 0 }; // Default spawn position
 
@@ -75,9 +72,13 @@ function generateMap(scene, staticObjects) {
                 playerSpawn = { x: x - 16, y: (-y + 16) * 2, z: 0 };
                 x++;
             } else if (mapData[y][x] === 2) {
-                let position = { x: x - 15.5, y: (-y + 15.75) * 2, z: 0 };
-                staticObjects.push(new Wall(scene, position));
-                x++;
+                let startX = x;
+                while (x < mapData[y].length && mapData[y][x] === 2) {
+                    x++; // Count contiguous wall blocks
+                }
+                let width = x - startX;
+                let position = { x: startX - 16 + width / 2, y: (-y + 15.75) * 2, z: 0 };
+                staticObjects.push(new Wall(scene, position, width));
             } else if (mapData[y][x] === -2) {
                 createLight(scene, { x: x - 16, y: (-y + 16) * 2, z: 0 });
                 x++;
@@ -88,5 +89,3 @@ function generateMap(scene, staticObjects) {
     }
     return playerSpawn;
 }
-
-
