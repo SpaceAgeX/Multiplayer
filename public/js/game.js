@@ -43,14 +43,16 @@ window.addEventListener('load', () => {
 socket.on("playerColor", (data) => {
     console.log(`Received color from server: ${data.color}`);
     
-    let playerSpawn = generateMap(scene, staticObjects);
+    // ✅ First, generate the map fully before adding the player
+    let playerSpawn = generateMap(scene, staticObjects, powerUps); // ✅ Ensure map is generated first
     
-    // Initialize player with assigned color
-    player = new Player(scene, data.color);
-    player.mesh.position.set(playerSpawn.x, playerSpawn.y, playerSpawn.z);
-    scene.add(player.mesh);
-
-    update(); // Start game loop
+    setTimeout(() => { // ✅ Delay player creation slightly to ensure the map loads
+        console.log("🌍 Map fully loaded. Spawning player...");
+        player = new Player(scene, data.color);
+        player.mesh.position.set(playerSpawn.x, playerSpawn.y, playerSpawn.z);
+        scene.add(player.mesh);
+        update(); // Start game loop
+    }, 10); // ✅ Small delay ensures the map is loaded first
 });
 
 function update() {
