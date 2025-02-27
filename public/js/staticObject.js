@@ -1,3 +1,5 @@
+//staticObject.js file
+
 class StaticObject {
     constructor(scene, width, height, depth, color, positions) {
         this.geometry = new THREE.BoxGeometry(width, height, depth);
