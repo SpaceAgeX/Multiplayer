@@ -1,7 +1,12 @@
+// player.js file
+
 class Player {
     constructor(scene, color) {
-        this.speed = 13;
-        this.jumpStrength = 17.5;
+        this.scene = scene;
+        this.baseSpeed = 13;
+        this.baseJumpStrength = 17.5;
+        this.speed = this.baseSpeed;
+        this.jumpStrength = this.baseJumpStrength;
         this.gravity = -35;
         this.velocityY = 0;
         this.isOnGround = false;
@@ -11,6 +16,15 @@ class Player {
         this.color = color;
         this.is_tagged = false; // Default: not tagged
         this.itIndicator = null; // The pyramid above "It"
+        
+        // Buff properties
+        this.hasSpeedBuff = false;
+        this.hasJumpBuff = false;
+        this.speedBuffEndTime = 0;
+        this.jumpBuffEndTime = 0;
+        this.speedBuffEffect = null;
+        this.jumpBuffEffect = null;
+        this.BUFF_DURATION = 5000; // 5 seconds in milliseconds
 
         // Create Player (Blue Sphere)
         this.geometry = new THREE.SphereGeometry(0.5, 16, 16);
@@ -34,7 +48,6 @@ class Player {
         window.addEventListener('keyup', (event) => {
             this.keys[event.key.toLowerCase()] = false;
         });
-        
     }
 
     setTagged(isTagged) {
@@ -49,9 +62,91 @@ class Player {
         }
     }
     
+    applySpeedBuff() {
+        this.hasSpeedBuff = true;
+        this.speed = this.baseSpeed * 1.5; // 50% speed boost
+        this.speedBuffEndTime = performance.now() + this.BUFF_DURATION;
+        this.showSpeedBuffEffect();
+        
+        // Schedule the buff to end
+        setTimeout(() => {
+            this.removeSpeedBuff();
+        }, this.BUFF_DURATION);
+    }
     
+    removeSpeedBuff() {
+        this.hasSpeedBuff = false;
+        this.speed = this.baseSpeed;
+        this.hideSpeedBuffEffect();
+    }
     
+    applyJumpBuff() {
+        this.hasJumpBuff = true;
+        this.jumpStrength = this.baseJumpStrength * 1.4; // 40% jump boost
+        this.jumpBuffEndTime = performance.now() + this.BUFF_DURATION;
+        this.showJumpBuffEffect();
+        
+        // Schedule the buff to end
+        setTimeout(() => {
+            this.removeJumpBuff();
+        }, this.BUFF_DURATION);
+    }
     
+    removeJumpBuff() {
+        this.hasJumpBuff = false;
+        this.jumpStrength = this.baseJumpStrength;
+        this.hideJumpBuffEffect();
+    }
+    
+    showSpeedBuffEffect() {
+        if (this.speedBuffEffect) return;
+        
+        // Create a particle effect around the player (green ring)
+        const ringGeometry = new THREE.RingGeometry(0.8, 0.9, 32);
+        const ringMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ff00,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.7
+        });
+        
+        this.speedBuffEffect = new THREE.Mesh(ringGeometry, ringMaterial);
+        this.speedBuffEffect.rotation.x = Math.PI / 2; // Align with XY plane
+        this.speedBuffEffect.position.y = -0.45; // Position at player's feet
+        this.mesh.add(this.speedBuffEffect);
+    }
+    
+    hideSpeedBuffEffect() {
+        if (this.speedBuffEffect) {
+            this.mesh.remove(this.speedBuffEffect);
+            this.speedBuffEffect = null;
+        }
+    }
+    
+    showJumpBuffEffect() {
+        if (this.jumpBuffEffect) return;
+        
+        // Create a particle effect around the player (blue ring)
+        const ringGeometry = new THREE.RingGeometry(0.8, 0.9, 32);
+        const ringMaterial = new THREE.MeshBasicMaterial({
+            color: 0x0000ff,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.7
+        });
+        
+        this.jumpBuffEffect = new THREE.Mesh(ringGeometry, ringMaterial);
+        this.jumpBuffEffect.rotation.x = Math.PI / 2; // Align with XY plane
+        this.jumpBuffEffect.position.y = -0.45; // Position at player's feet
+        this.mesh.add(this.jumpBuffEffect);
+    }
+    
+    hideJumpBuffEffect() {
+        if (this.jumpBuffEffect) {
+            this.mesh.remove(this.jumpBuffEffect);
+            this.jumpBuffEffect = null;
+        }
+    }
 
     addItIndicator() {
         if (this.itIndicator) return; // Prevent duplicate indicators
@@ -72,6 +167,16 @@ class Player {
     }
 
     update(staticObjects, deltaTime) {
+        // Check if buffs have expired
+        const now = performance.now();
+        if (this.hasSpeedBuff && now > this.speedBuffEndTime) {
+            this.removeSpeedBuff();
+        }
+        
+        if (this.hasJumpBuff && now > this.jumpBuffEndTime) {
+            this.removeJumpBuff();
+        }
+        
         let moveX = 0;
 
         // Horizontal movement (A/D)
@@ -84,9 +189,9 @@ class Player {
         }
 
         // Gravity
-        this.velocityY += this.gravity*deltaTime;
-        let newY = this.mesh.position.y + this.velocityY*deltaTime;
-        let newX = this.mesh.position.x + moveX*deltaTime;
+        this.velocityY += this.gravity * deltaTime;
+        let newY = this.mesh.position.y + this.velocityY * deltaTime;
+        let newX = this.mesh.position.x + moveX * deltaTime;
 
         // Collision Detection
         if (!this.checkCollision(staticObjects, newX, this.mesh.position.y)) {
@@ -106,8 +211,15 @@ class Player {
             this.velocityY = this.jumpStrength;
             this.isOnGround = false;
         }
-
-       
+        
+        // Animate buff effects
+        if (this.speedBuffEffect) {
+            this.speedBuffEffect.rotation.z += 0.05;
+        }
+        
+        if (this.jumpBuffEffect) {
+            this.jumpBuffEffect.rotation.z -= 0.05;
+        }
     }
 
     checkCollision(staticObjects, newX, newY) {
@@ -153,7 +265,4 @@ class Player {
         }
         return newlyCollided; // ✅ Only return the first-time collision
     }
-    
-    
-    
 }
