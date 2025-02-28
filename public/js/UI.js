@@ -6,7 +6,7 @@ class UI {
         this.ping = 0;
         this.lastFrameTime = performance.now();
         this.timer = 60; // Countdown timer in seconds
-        this.nextBuffTime = 15; // Time until next buff spawn
+        this.nextBuffTime = 30; // Time until next buff spawn (30 seconds)
 
         // Create a UI display container with more cartoony style
         this.uiContainer = document.createElement("div");
@@ -57,6 +57,18 @@ class UI {
         this.jumpBuffIndicator.textContent = "🦘 Jump Boost: 0s";
         this.buffContainer.appendChild(this.jumpBuffIndicator);
 
+        this.shieldBuffIndicator = document.createElement("div");
+        this.shieldBuffIndicator.style.backgroundColor = "rgba(255, 165, 0, 0.7)"; // Orange
+        this.shieldBuffIndicator.style.padding = "8px 15px";
+        this.shieldBuffIndicator.style.borderRadius = "10px";
+        this.shieldBuffIndicator.style.fontFamily = "'Comic Sans MS', cursive, sans-serif";
+        this.shieldBuffIndicator.style.fontSize = "16px";
+        this.shieldBuffIndicator.style.display = "none";
+        this.shieldBuffIndicator.style.border = "2px solid #FF8C00"; // Dark orange
+        this.shieldBuffIndicator.style.boxShadow = "0 0 10px #FFA500"; // Orange glow
+        this.shieldBuffIndicator.textContent = "🛡️ Shield: 0s";
+        this.buffContainer.appendChild(this.shieldBuffIndicator);
+
         // Create buff spawn timer with cartoon style
         this.buffTimerIndicator = document.createElement("div");
         this.buffTimerIndicator.style.backgroundColor = "rgba(255, 255, 255, 0.7)";
@@ -66,7 +78,7 @@ class UI {
         this.buffTimerIndicator.style.fontSize = "16px";
         this.buffTimerIndicator.style.border = "2px solid #AAAAAA"; // Add border for cartoon feel
         this.buffTimerIndicator.style.color = "#000000";
-        this.buffTimerIndicator.textContent = "🎁 Next Buff: 15s";
+        this.buffTimerIndicator.textContent = "🎁 Next Buff: 30s";
         this.buffContainer.appendChild(this.buffTimerIndicator);
 
         // Add "tagged" indicator (only shows when player is tagged)
@@ -97,7 +109,7 @@ class UI {
         // Start countdown timer
         this.startTimer();
         
-        // Start buff spawn timer - now this is just for UI display, as server controls the actual spawning
+        // Start buff spawn timer
         this.startBuffTimer();
     }
 
@@ -126,8 +138,8 @@ class UI {
     startBuffTimer() {
         setInterval(() => {
             this.nextBuffTime--;
-            if (this.nextBuffTime < 0) {
-                this.nextBuffTime = 15; // Reset buff timer when it reaches 0
+            if (this.nextBuffTime <= 0) {
+                this.nextBuffTime = 30; // Always reset to exactly 30 seconds
             }
             this.buffTimerIndicator.textContent = `🎁 Next Buff: ${this.nextBuffTime}s`;
         }, 1000);
@@ -154,6 +166,15 @@ class UI {
             this.jumpBuffIndicator.style.display = "none";
         }
         
+        // Update shield buff status
+        if (player.hasShieldBuff) {
+            const remainingTime = Math.ceil((player.shieldBuffEndTime - performance.now()) / 1000);
+            this.shieldBuffIndicator.textContent = `🛡️ Shield: ${remainingTime}s`;
+            this.shieldBuffIndicator.style.display = "block";
+        } else {
+            this.shieldBuffIndicator.style.display = "none";
+        }
+        
         // Update "tagged" status
         if (player.is_tagged) {
             this.taggedIndicator.style.display = "block";
@@ -172,8 +193,8 @@ class UI {
         }
     }
     
-    // Reset the buff spawn timer when a buff spawns
+    // Reset the buff timer to 30 seconds
     resetBuffTimer() {
-        this.nextBuffTime = 15;
+        this.nextBuffTime = 30; // Always reset to exactly 30 seconds
     }
 }

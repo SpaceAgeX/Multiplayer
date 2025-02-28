@@ -86,6 +86,7 @@ let lastFrameTime = performance.now(); // Store last frame timestamp
 let lastTagTime = 0; // Global tag cooldown timer
 let buffs = []; // Array to store active buffs
 let buffLocations = []; // Will store possible buff spawn locations
+const BUFF_SPAWN_INTERVAL = 30000; // 30 seconds in milliseconds
 
 window.addEventListener('load', () => {
     socket.emit("requestColor"); // Request assigned color from server
@@ -144,6 +145,7 @@ function update() {
         is_tagged: player.is_tagged,
         hasSpeedBuff: player.hasSpeedBuff,
         hasJumpBuff: player.hasJumpBuff,
+        hasShieldBuff: player.hasShieldBuff,
         facingDirection: player.facingDirection,
         isMoving: player.isMoving,
         isJumping: player.isJumping
@@ -174,7 +176,6 @@ function update() {
     requestAnimationFrame(update);
 }
 
-// Function to check if player collected any buffs
 function checkBuffCollection() {
     if (!player) return;
     
@@ -185,7 +186,7 @@ function checkBuffCollection() {
         const distance = Math.sqrt(dx * dx + dy * dy);
         
         if (distance < 1.0) { // If player is close enough to collect
-            console.log(`Player collected a ${buff.type === 0 ? 'Speed' : 'Jump'} buff!`);
+            console.log(`Player collected a ${buff.type === 0 ? 'Speed' : buff.type === 1 ? 'Jump' : 'Shield'} buff!`);
             
             // Notify server about the buff collection
             socket.emit('collectBuff', {
@@ -199,7 +200,7 @@ function checkBuffCollection() {
 
 // Listen for server-spawn buff events
 socket.on('spawnBuff', (data) => {
-    console.log(`Server spawned a ${data.type === 0 ? 'Speed' : 'Jump'} buff at position (${data.position.x}, ${data.position.y})`);
+    console.log(`Server spawned a ${data.type === 0 ? 'Speed' : data.type === 1 ? 'Jump' : 'Shield'} buff at position (${data.position.x}, ${data.position.y})`);
     
     // Create the buff with the ID from server
     const buff = new Buff(scene, data.position, data.type, data.id);
@@ -211,7 +212,7 @@ socket.on('spawnBuff', (data) => {
 
 // Listen for buff collection events from server
 socket.on('buffCollected', (data) => {
-    console.log(`Player ${data.id} collected a ${data.buffType === 0 ? 'Speed' : 'Jump'} buff`);
+    console.log(`Player ${data.id} collected a ${data.buffType === 0 ? 'Speed' : data.buffType === 1 ? 'Jump' : 'Shield'} buff`);
     
     // Find and remove the buff with matching ID
     for (let i = buffs.length - 1; i >= 0; i--) {
@@ -226,8 +227,10 @@ socket.on('buffCollected', (data) => {
     if (data.id === socket.id && player) {
         if (data.buffType === 0) { // Speed buff
             player.applySpeedBuff();
-        } else { // Jump buff
+        } else if (data.buffType === 1) { // Jump buff
             player.applyJumpBuff();
+        } else if (data.buffType === 2) { // Shield buff
+            player.applyShieldBuff();
         }
     }
     
@@ -235,8 +238,10 @@ socket.on('buffCollected', (data) => {
     if (otherPlayers[data.id]) {
         if (data.buffType === 0) {
             otherPlayers[data.id].showSpeedBuffEffect();
-        } else {
+        } else if (data.buffType === 1) {
             otherPlayers[data.id].showJumpBuffEffect();
+        } else if (data.buffType === 2) {
+            otherPlayers[data.id].showShieldBuffEffect();
         }
     }
 });
@@ -269,8 +274,6 @@ socket.on('assignTag', (data) => {
     }
 });
 
-// Replace the existing socket.on('updatePosition') handler in game.js with this version
-// to handle ninja animation states
 socket.on('updatePosition', (data) => {
     if (!otherPlayers[data.id]) {
         console.log(`Creating new player ${data.id} with color: ${data.color}`);
@@ -314,74 +317,14 @@ socket.on('updatePosition', (data) => {
         } else {
             otherPlayers[data.id].hideJumpBuffEffect();
         }
+        
+        if (data.hasShieldBuff) {
+            otherPlayers[data.id].showShieldBuffEffect();
+        } else {
+            otherPlayers[data.id].hideShieldBuffEffect();
+        }
     }
 });
-
-// Modify the update() function to include animation state transmission
-function update() {
-    if (!player) return; // Ensure player is initialized before updating
-
-    let now = performance.now();
-    let deltaTime = (now - lastFrameTime) / 1000;
-    lastFrameTime = now;
-
-    // Update all active buffs
-    for (let i = buffs.length - 1; i >= 0; i--) {
-        buffs[i].update(now);
-    }
-
-    // Check if player collected any buffs
-    checkBuffCollection();
-
-    player.update(staticObjects, deltaTime);
-
-    if (player.is_tagged) {
-        let taggedPlayerId = player.checkPlayerCollision(otherPlayers);
-    
-        if (taggedPlayerId) { 
-            console.log(`✅ Player ${taggedPlayerId} was tagged! Sending event to server.`);
-            socket.emit("tagPlayer", { id: taggedPlayerId });
-        }
-    }
-
-    // Send position, animation states, and buff status to server
-    socket.emit('updatePosition', {
-        id: socket.id,
-        x: player.mesh.position.x,
-        y: player.mesh.position.y,
-        color: player.color,
-        is_tagged: player.is_tagged,
-        hasSpeedBuff: player.hasSpeedBuff,
-        hasJumpBuff: player.hasJumpBuff,
-        facingDirection: player.facingDirection,
-        isMoving: player.isMoving,
-        isJumping: player.isJumping
-    });
-
-    // Update other players' animations
-    for (const id in otherPlayers) {
-        const otherPlayer = otherPlayers[id];
-        
-        // Apply appropriate animation based on state
-        if (otherPlayer.isJumping) {
-            otherPlayer.animateJumping();
-        } else if (otherPlayer.isMoving) {
-            otherPlayer.animateRunning(deltaTime);
-        } else {
-            otherPlayer.resetAnimation();
-        }
-    }
-
-    camera.position.y = player.mesh.position.y + 2;
-    camera.position.x = player.mesh.position.x;
-
-    // Update sky position to follow camera
-    sky.update();
-
-    renderer.render(scene, camera);
-    ui.updateUI(player); // Update UI with player status
-    requestAnimationFrame(update);
-}
 
 socket.on('removePlayer', (id) => {
     if (otherPlayers[id]) {
@@ -394,15 +337,15 @@ socket.on('removePlayer', (id) => {
 // Buff class definition
 class Buff {
     constructor(scene, position, type, id) {
-        this.type = type; // 0 for speed, 1 for jump
+        this.type = type; // 0 for speed, 1 for jump, 2 for shield
         this.id = id; // Store the server-assigned ID
         this.creationTime = performance.now();
         
         // Create the buff mesh - more cartoon-like with cel-shading effect
         const geometry = new THREE.DodecahedronGeometry(0.4, 0); // Low-poly geometry
         const material = new THREE.MeshToonMaterial({
-            color: this.type === 0 ? 0x00ff00 : 0x0000ff, // Green for speed, Blue for jump
-            emissive: this.type === 0 ? 0x00ff00 : 0x0000ff,
+            color: this.getColorForType(),
+            emissive: this.getColorForType(),
             emissiveIntensity: 0.5,
             flatShading: true // Enable flat shading for low-poly look
         });
@@ -413,7 +356,7 @@ class Buff {
         // Create a halo effect - simplified for cartoon look
         const haloGeometry = new THREE.RingGeometry(0.5, 0.6, 8); // Less segments for low-poly
         const haloMaterial = new THREE.MeshBasicMaterial({
-            color: this.type === 0 ? 0x00ff00 : 0x0000ff,
+            color: this.getColorForType(),
             side: THREE.DoubleSide,
             transparent: true,
             opacity: 0.7
@@ -425,6 +368,15 @@ class Buff {
         
         this.mesh.add(this.halo);
         scene.add(this.mesh);
+    }
+    
+    getColorForType() {
+        switch(this.type) {
+            case 0: return 0x00ff00; // Green for speed
+            case 1: return 0x0000ff; // Blue for jump
+            case 2: return 0xffa500; // Orange for shield
+            default: return 0xffffff; // White fallback
+        }
     }
     
     update(currentTime) {

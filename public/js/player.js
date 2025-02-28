@@ -24,10 +24,13 @@ class Player {
         // Buff properties
         this.hasSpeedBuff = false;
         this.hasJumpBuff = false;
+        this.hasShieldBuff = false;
         this.speedBuffEndTime = 0;
         this.jumpBuffEndTime = 0;
+        this.shieldBuffEndTime = 0;
         this.speedBuffEffect = null;
         this.jumpBuffEffect = null;
+        this.shieldBuffEffect = null;
         this.BUFF_DURATION = 5000; // 5 seconds in milliseconds
 
         // Animation properties
@@ -208,6 +211,22 @@ class Player {
         this.hideJumpBuffEffect();
     }
     
+    applyShieldBuff() {
+        this.hasShieldBuff = true;
+        this.shieldBuffEndTime = performance.now() + this.BUFF_DURATION;
+        this.showShieldBuffEffect();
+        
+        // Schedule the buff to end
+        setTimeout(() => {
+            this.removeShieldBuff();
+        }, this.BUFF_DURATION);
+    }
+    
+    removeShieldBuff() {
+        this.hasShieldBuff = false;
+        this.hideShieldBuffEffect();
+    }
+    
     showSpeedBuffEffect() {
         if (this.speedBuffEffect) return;
         
@@ -255,6 +274,29 @@ class Player {
         if (this.jumpBuffEffect) {
             this.mesh.remove(this.jumpBuffEffect);
             this.jumpBuffEffect = null;
+        }
+    }
+    
+    showShieldBuffEffect() {
+        if (this.shieldBuffEffect) return;
+        
+        // Create a shield bubble effect
+        const sphereGeometry = new THREE.SphereGeometry(0.7, 16, 16);
+        const shieldMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffa500, // Orange
+            transparent: true,
+            opacity: 0.4,
+            side: THREE.DoubleSide
+        });
+        
+        this.shieldBuffEffect = new THREE.Mesh(sphereGeometry, shieldMaterial);
+        this.mesh.add(this.shieldBuffEffect);
+    }
+    
+    hideShieldBuffEffect() {
+        if (this.shieldBuffEffect) {
+            this.mesh.remove(this.shieldBuffEffect);
+            this.shieldBuffEffect = null;
         }
     }
 
@@ -340,6 +382,10 @@ class Player {
             this.removeJumpBuff();
         }
         
+        if (this.hasShieldBuff && now > this.shieldBuffEndTime) {
+            this.removeShieldBuff();
+        }
+        
         let moveX = 0;
         this.isMoving = false;
 
@@ -422,6 +468,12 @@ class Player {
             this.jumpBuffEffect.scale.set(scale, scale, scale);
         }
         
+        if (this.shieldBuffEffect) {
+            // Pulsing animation for shield effect
+            const scale = 1.0 + 0.1 * Math.sin(now / 300);
+            this.shieldBuffEffect.scale.set(scale, scale, scale);
+        }
+        
         // Animate the "it" indicator for more cartoon feel
         if (this.itIndicator) {
             this.itIndicator.rotation.y += 0.03;
@@ -460,6 +512,11 @@ class Player {
             let distance = Math.sqrt(dx * dx + dy * dy);
 
             if (distance < 1.0) {
+                // If the other player has a shield, they can't be tagged
+                if (other.hasShieldBuff) {
+                    continue;
+                }
+                
                 if (!this.prevCollisions.has(id)) { // Only return if first entry
                     console.log(`✅ First-time collision detected with player ${id}!`);
                     newlyCollided = id;

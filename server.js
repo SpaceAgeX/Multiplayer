@@ -1,4 +1,4 @@
-// server.js - add these sections to your existing server file
+// server.js
 
 const express = require('express');
 const http = require('http');
@@ -14,7 +14,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Game variables
 const players = {};
-const BUFF_SPAWN_INTERVAL = 15000; // 15 seconds in milliseconds
+const BUFF_SPAWN_INTERVAL = 30000; // 30 seconds in milliseconds
 let buffLocations = []; // Will store possible buff spawn locations
 let activeBuffs = []; // Will track all active buffs in the game
 let nextBuffId = 1; // Simple ID counter for buffs
@@ -32,7 +32,13 @@ io.on('connection', (socket) => {
         color: color,
         x: 0,
         y: 0,
-        is_tagged: false
+        is_tagged: false,
+        hasSpeedBuff: false,
+        hasJumpBuff: false,
+        hasShieldBuff: false,
+        facingDirection: 1,
+        isMoving: false,
+        isJumping: false
     };
 
     // Send assigned color to player
@@ -81,13 +87,14 @@ io.on('connection', (socket) => {
             players[socket.id].is_tagged = data.is_tagged;
             players[socket.id].hasSpeedBuff = data.hasSpeedBuff;
             players[socket.id].hasJumpBuff = data.hasJumpBuff;
+            players[socket.id].hasShieldBuff = data.hasShieldBuff;
             
             // Save animation states
             players[socket.id].facingDirection = data.facingDirection;
             players[socket.id].isMoving = data.isMoving;
             players[socket.id].isJumping = data.isJumping;
         }
-    
+
         // Broadcast to all other clients
         socket.broadcast.emit('updatePosition', data);
     });
@@ -98,6 +105,12 @@ io.on('connection', (socket) => {
         
         // If the tagging player is "it"
         if (players[socket.id] && players[socket.id].is_tagged) {
+            // Check if the target player has a shield
+            if (players[data.id] && players[data.id].hasShieldBuff) {
+                console.log(`Player ${data.id} was protected by a shield!`);
+                return; // Don't tag the player
+            }
+            
             // Update the tagged status
             if (players[socket.id]) players[socket.id].is_tagged = false;
             if (players[data.id]) players[data.id].is_tagged = true;
@@ -171,10 +184,10 @@ function startBuffSpawnSystem() {
     // Immediately spawn first buff
     spawnRandomBuff();
     
-    // Set up timer for future spawns
+    // Set up timer for future spawns - exactly every 30 seconds
     buffSpawnTimer = setInterval(() => {
         spawnRandomBuff();
-    }, BUFF_SPAWN_INTERVAL);
+    }, BUFF_SPAWN_INTERVAL); // 30000ms
 }
 
 // Function to spawn a random buff
@@ -188,8 +201,9 @@ function spawnRandomBuff() {
     const locationIndex = Math.floor(Math.random() * buffLocations.length);
     const location = buffLocations[locationIndex];
     
-    // Decide which buff type to spawn (0 for speed, 1 for jump)
-    const buffType = Math.floor(Math.random() * 2);
+    // Decide which buff type to spawn (0 for speed, 1 for jump, 2 for shield)
+    // All buffs should have equal chance (1/3)
+    let buffType = Math.floor(Math.random() * 3);
     
     // Create a buff with a unique ID
     const buffId = nextBuffId++;
@@ -205,7 +219,7 @@ function spawnRandomBuff() {
     // Broadcast to all clients
     io.emit('spawnBuff', buff);
     
-    console.log(`Spawned ${buffType === 0 ? 'Speed' : 'Jump'} buff #${buffId} at position (${location.x}, ${location.y})`);
+    console.log(`Spawned ${buffType === 0 ? 'Speed' : buffType === 1 ? 'Jump' : 'Shield'} buff #${buffId} at position (${location.x}, ${location.y})`);
 }
 
 // Function to clear all existing buffs
