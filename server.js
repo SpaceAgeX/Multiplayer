@@ -1,117 +1,223 @@
+// server.js - add these sections to your existing server file
+
 const express = require('express');
 const http = require('http');
-const { Server } = require('socket.io');
+const socketIO = require('socket.io');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-    cors: {
-        origin: "*", 
-        methods: ["GET", "POST"]
-    }
-});
+const io = socketIO(server);
 
-// Serve static files from 'public'
-app.use(express.static('public'));
+// Serve static files
+app.use(express.static(path.join(__dirname, 'public')));
 
-let firstPlayer = null;
-let players = {}; // Global object to track all connected players
+// Game variables
+const players = {};
+const BUFF_SPAWN_INTERVAL = 15000; // 15 seconds in milliseconds
+let buffLocations = []; // Will store possible buff spawn locations
+let activeBuffs = []; // Will track all active buffs in the game
+let nextBuffId = 1; // Simple ID counter for buffs
+let buffSpawnTimer = null;
+let taggedPlayerId = null; // Track who is "it"
 
-
+// Socket connection
 io.on('connection', (socket) => {
     console.log(`Player connected: ${socket.id}`);
 
-    // If there's no first player yet, assign this player as "It"
-    if (!firstPlayer) {
-        firstPlayer = socket.id;
-    }
-
-    // Assign player data
+    // Assign random player color
+    const color = Math.floor(Math.random() * 0xffffff);
     players[socket.id] = {
         id: socket.id,
+        color: color,
         x: 0,
         y: 0,
-        color: Math.floor(Math.random() * 0xffffff), // Random color
-        is_tagged: socket.id === firstPlayer
+        is_tagged: false
     };
 
-    // ✅ Send assigned color to the client
-    socket.emit("playerColor", { color: players[socket.id].color });
+    // Send assigned color to player
+    socket.emit('playerColor', { color: color });
 
-    // ✅ Send the entire players list to the new player
-    socket.emit("currentPlayers", players);
-
-    // ✅ Notify all players about the new player
-    io.emit("newPlayer", players[socket.id]);
-
-    // ✅ Ensure the first player gets the "It" status
-    socket.emit('assignTag', { id: firstPlayer });
-
-
-    
-
-    socket.on('pingTest', (callback) => {
-        callback(); // Respond immediately to measure latency
-    });
-    
-
-    
-
-    socket.on('tagPlayer', (data) => {
-      
-        console.log(`🔴 Player ${socket.id} tagged Player ${data.id}`);
-    
-        if (typeof data.id !== "string" || !players[data.id]) {  
-            console.error(`❌ Error: Attempted to tag non-existent player ${data.id}`);
-            return;
-        }
-    
-        if (socket.id === firstPlayer) {
-            firstPlayer = data.id; // ✅ Assign new "It"
-            io.emit('assignTag', { id: firstPlayer });
-    
-            console.log(`🟢 New "It" player is ${firstPlayer}`);
+    // Handle buff locations sent by clients
+    socket.on('buffLocations', (locations) => {
+        // Only accept locations from the first player to avoid duplicates
+        if (buffLocations.length === 0 && locations.length > 0) {
+            console.log('Received buff locations:', locations.length);
+            buffLocations = locations;
+            
+            // Start buff spawning system if not already started
+            if (!buffSpawnTimer) {
+                startBuffSpawnSystem();
+            }
         }
     });
     
-    
-    
+    // Handle buff collection
+    socket.on('collectBuff', (data) => {
+        console.log(`Player ${data.id} collected buff ${data.buffId}`);
+        
+        // Find the buff in activeBuffs
+        const buffIndex = activeBuffs.findIndex(buff => buff.id === data.buffId);
+        
+        if (buffIndex !== -1) {
+            // Remove the buff from active list
+            activeBuffs.splice(buffIndex, 1);
+            
+            // Broadcast to all clients that this buff was collected
+            io.emit('buffCollected', {
+                id: data.id,
+                buffId: data.buffId,
+                buffType: data.buffType
+            });
+        }
+    });
 
+    // Handle position updates
     socket.on('updatePosition', (data) => {
-        socket.broadcast.emit('updatePosition', { 
-            id: socket.id, 
-            x: data.x, 
-            y: data.y, 
-            color: data.color, 
-            is_tagged: socket.id === firstPlayer 
-        });
-    });
-
-    socket.on('disconnect', () => {
-        console.log(`❌ Player disconnected: ${socket.id}`);
-    
-        // Remove the player from the players list
-        delete players[socket.id];
-    
-        // If the player who left was "It", reassign another player
-        if (socket.id === firstPlayer) {
-            let remainingPlayers = Object.keys(players);
-            firstPlayer = remainingPlayers.length > 0 ? remainingPlayers[0] : null;
-            io.emit('assignTag', { id: firstPlayer });
-            console.log(`⚠ New It: ${firstPlayer}`);
+        // Update player data
+        if (players[socket.id]) {
+            players[socket.id].x = data.x;
+            players[socket.id].y = data.y;
+            players[socket.id].is_tagged = data.is_tagged;
+            players[socket.id].hasSpeedBuff = data.hasSpeedBuff;
+            players[socket.id].hasJumpBuff = data.hasJumpBuff;
+            
+            // Save animation states
+            players[socket.id].facingDirection = data.facingDirection;
+            players[socket.id].isMoving = data.isMoving;
+            players[socket.id].isJumping = data.isJumping;
         }
     
-        // Notify all clients to remove the player from their scene
+        // Broadcast to all other clients
+        socket.broadcast.emit('updatePosition', data);
+    });
+
+    // Handle tag events
+    socket.on('tagPlayer', (data) => {
+        console.log(`Player ${socket.id} tagged player ${data.id}`);
+        
+        // If the tagging player is "it"
+        if (players[socket.id] && players[socket.id].is_tagged) {
+            // Update the tagged status
+            if (players[socket.id]) players[socket.id].is_tagged = false;
+            if (players[data.id]) players[data.id].is_tagged = true;
+            
+            // Update the taggedPlayerId
+            taggedPlayerId = data.id;
+            
+            // Broadcast the change to all clients
+            io.emit('assignTag', { id: data.id });
+        }
+    });
+
+    // Handle ping tests
+    socket.on('pingTest', (callback) => {
+        if (typeof callback === 'function') {
+            callback();
+        }
+    });
+
+    // Handle disconnection
+    socket.on('disconnect', () => {
+        console.log(`Player disconnected: ${socket.id}`);
+        
+        // If the disconnected player was "it", assign a new player
+        if (players[socket.id] && players[socket.id].is_tagged) {
+            assignNewTaggedPlayer(socket.id);
+        }
+        
+        // Remove player from the players object
+        delete players[socket.id];
+        
+        // Broadcast removal to all clients
         io.emit('removePlayer', socket.id);
     });
-    
+
+    // If this is the first player or there's no tagged player, make them "it"
+    if (Object.keys(players).length === 1 || !taggedPlayerId) {
+        taggedPlayerId = socket.id;
+        players[socket.id].is_tagged = true;
+        io.emit('assignTag', { id: socket.id });
+    } else {
+        // Otherwise, tell this player who is currently "it"
+        socket.emit('assignTag', { id: taggedPlayerId });
+    }
 });
 
+// Function to assign a new tagged player when the current one disconnects
+function assignNewTaggedPlayer(excludeId) {
+    const playerIds = Object.keys(players).filter(id => id !== excludeId);
+    
+    if (playerIds.length > 0) {
+        // Pick a random player
+        const randomIndex = Math.floor(Math.random() * playerIds.length);
+        const newTaggedId = playerIds[randomIndex];
+        
+        // Update the player
+        players[newTaggedId].is_tagged = true;
+        taggedPlayerId = newTaggedId;
+        
+        // Broadcast the change
+        io.emit('assignTag', { id: newTaggedId });
+    } else {
+        taggedPlayerId = null;
+    }
+}
 
-// Use port 3000 locally
-const PORT = 3000;
+// Function to start the buff spawn system
+function startBuffSpawnSystem() {
+    console.log('Starting buff spawn system');
+    
+    // Immediately spawn first buff
+    spawnRandomBuff();
+    
+    // Set up timer for future spawns
+    buffSpawnTimer = setInterval(() => {
+        spawnRandomBuff();
+    }, BUFF_SPAWN_INTERVAL);
+}
+
+// Function to spawn a random buff
+function spawnRandomBuff() {
+    if (buffLocations.length === 0) return;
+    
+    // Clear any existing buffs
+    clearAllBuffs();
+    
+    // Choose a random location from the available buff locations
+    const locationIndex = Math.floor(Math.random() * buffLocations.length);
+    const location = buffLocations[locationIndex];
+    
+    // Decide which buff type to spawn (0 for speed, 1 for jump)
+    const buffType = Math.floor(Math.random() * 2);
+    
+    // Create a buff with a unique ID
+    const buffId = nextBuffId++;
+    const buff = {
+        id: buffId,
+        position: location,
+        type: buffType
+    };
+    
+    // Add to active buffs
+    activeBuffs.push(buff);
+    
+    // Broadcast to all clients
+    io.emit('spawnBuff', buff);
+    
+    console.log(`Spawned ${buffType === 0 ? 'Speed' : 'Jump'} buff #${buffId} at position (${location.x}, ${location.y})`);
+}
+
+// Function to clear all existing buffs
+function clearAllBuffs() {
+    if (activeBuffs.length > 0) {
+        activeBuffs = [];
+        io.emit('clearBuffs');
+    }
+}
+
+// Start the server
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
-
-module.exports = app; // Required for Vercel deployment

@@ -1,27 +1,27 @@
 class Block extends StaticObject {
     constructor(scene, position, width) {
-        // Instead of using a simple color, we'll implement a textured material
-        super(scene, width, 1, 1, null, position); // Pass null for color, we'll set material manually
+        // Pass null for color, we'll set material manually
+        super(scene, width, 1, 1, null, position);
         
         // Remove the default material
         this.mesh.material = null;
         
-        // Create textures
-        const sideTexture = createSideTexture();
-        const topTexture = createTopTexture();
+        // Create cartoony textures
+        const sideTexture = createCartoonSideTexture();
+        const topTexture = createCartoonTopTexture();
         
         // Set proper texture tiling based on width
         sideTexture.repeat.set(width, 1);
         topTexture.repeat.set(width, 1);
         
-        // Create material with the texture
+        // Create material with the texture - using MeshToonMaterial for cartoon look
         const materials = [
-            new THREE.MeshStandardMaterial({ map: sideTexture }), // Right side
-            new THREE.MeshStandardMaterial({ map: sideTexture }), // Left side
-            new THREE.MeshStandardMaterial({ map: topTexture }), // Top
-            new THREE.MeshStandardMaterial({ map: sideTexture }), // Bottom
-            new THREE.MeshStandardMaterial({ map: sideTexture }), // Front
-            new THREE.MeshStandardMaterial({ map: sideTexture })  // Back
+            new THREE.MeshToonMaterial({ map: sideTexture, flatShading: true }), // Right side
+            new THREE.MeshToonMaterial({ map: sideTexture, flatShading: true }), // Left side
+            new THREE.MeshToonMaterial({ map: topTexture, flatShading: true }), // Top
+            new THREE.MeshToonMaterial({ map: sideTexture, flatShading: true }), // Bottom
+            new THREE.MeshToonMaterial({ map: sideTexture, flatShading: true }), // Front
+            new THREE.MeshToonMaterial({ map: sideTexture, flatShading: true })  // Back
         ];
         
         this.mesh.material = materials;
@@ -32,39 +32,58 @@ class Block extends StaticObject {
     }
 }
 
-// Function to create the side texture (dirt with grass on top)
-function createSideTexture() {
+// Function to create a cartoony side texture (dirt with grass on top)
+function createCartoonSideTexture() {
     // Create a canvas for the texture
     const canvas = document.createElement('canvas');
     canvas.width = 64;
     canvas.height = 64;
     const ctx = canvas.getContext('2d');
     
-    // Base dirt color
-    ctx.fillStyle = '#8B4513';
+    // Base dirt color - warmer and more saturated for cartoon look
+    ctx.fillStyle = '#B06B37';
     ctx.fillRect(0, 0, 64, 64);
     
-    // Top grass color
-    ctx.fillStyle = '#228B22';
-    ctx.fillRect(0, 0, 64, 10);
+    // Top grass color - brighter green for cartoon style
+    ctx.fillStyle = '#44D62C';
+    ctx.fillRect(0, 0, 64, 12);
     
-    // Add some grass texture variation
-    ctx.fillStyle = '#32CD32';
-    for (let i = 0; i < 20; i++) {
-        const x = Math.floor(Math.random() * 64);
-        const y = Math.floor(Math.random() * 10);
-        const size = Math.floor(Math.random() * 4) + 1;
-        ctx.fillRect(x, y, size, size);
+    // Add distinct shapes for cartoon look instead of random dots
+    ctx.fillStyle = '#65E24F';
+    
+    // Add a few distinct grass variations
+    for (let i = 0; i < 5; i++) {
+        const x = i * 12;
+        ctx.beginPath();
+        ctx.moveTo(x, 12);
+        ctx.lineTo(x + 6, 8);
+        ctx.lineTo(x + 12, 12);
+        ctx.fill();
     }
     
-    // Add some dirt speckles
-    ctx.fillStyle = '#A0522D';
-    for (let i = 0; i < 40; i++) {
-        const x = Math.floor(Math.random() * 64);
-        const y = Math.floor(Math.random() * 54) + 10;
-        const size = Math.floor(Math.random() * 3) + 1;
-        ctx.fillRect(x, y, size, size);
+    // Add a few distinct dirt shapes
+    ctx.fillStyle = '#C67B43';
+    for (let i = 0; i < 8; i++) {
+        const x = Math.floor(Math.random() * 55) + 5;
+        const y = Math.floor(Math.random() * 35) + 20;
+        const size = Math.floor(Math.random() * 8) + 4;
+        
+        // Draw a simple polygon instead of a rectangle
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + size, y);
+        ctx.lineTo(x + size - 2, y + size);
+        ctx.lineTo(x - 2, y + size);
+        ctx.fill();
     }
+    
+    // Add a simple black outline at the top for cartoon style
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 12);
+    ctx.lineTo(64, 12);
+    ctx.stroke();
     
     // Create texture from canvas
     const texture = new THREE.CanvasTexture(canvas);
@@ -79,33 +98,42 @@ function createSideTexture() {
     return texture;
 }
 
-// Function to create the top grass texture
-function createTopTexture() {
+// Function to create the cartoony top grass texture
+function createCartoonTopTexture() {
     const canvas = document.createElement('canvas');
     canvas.width = 64;
     canvas.height = 64;
     const ctx = canvas.getContext('2d');
     
-    // Base grass color
-    ctx.fillStyle = '#32CD32';
+    // Base grass color - brighter for cartoon style
+    ctx.fillStyle = '#44D62C';
     ctx.fillRect(0, 0, 64, 64);
     
-    // Add grass texture variations
-    ctx.fillStyle = '#228B22';
-    for (let i = 0; i < 40; i++) {
-        const x = Math.floor(Math.random() * 64);
-        const y = Math.floor(Math.random() * 64);
-        const size = Math.floor(Math.random() * 5) + 1;
-        ctx.fillRect(x, y, size, size);
+    // Add larger, more distinct shapes for cartoon grass
+    ctx.fillStyle = '#65E24F';
+    
+    // Add some simple cartoon grass tufts
+    for (let i = 0; i < 8; i++) {
+        for (let j = 0; j < 8; j++) {
+            const x = i * 8;
+            const y = j * 8;
+            
+            if ((i + j) % 2 === 0) {
+                ctx.fillRect(x, y, 8, 8);
+            }
+        }
     }
     
-    // Add some lighter grass patches
-    ctx.fillStyle = '#7CFC00';
-    for (let i = 0; i < 20; i++) {
-        const x = Math.floor(Math.random() * 64);
-        const y = Math.floor(Math.random() * 64);
-        const size = Math.floor(Math.random() * 4) + 1;
-        ctx.fillRect(x, y, size, size);
+    // Add some simple cartoon grass details
+    ctx.fillStyle = '#7DF967';
+    for (let i = 0; i < 10; i++) {
+        const x = Math.floor(Math.random() * 54) + 5;
+        const y = Math.floor(Math.random() * 54) + 5;
+        
+        // Draw a simple cartoon grass tuft
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, 2 * Math.PI);
+        ctx.fill();
     }
     
     const texture = new THREE.CanvasTexture(canvas);
@@ -135,14 +163,13 @@ class Wall extends StaticObject {
         // Remove the default material
         this.mesh.material = null;
         
-        // Create a stone texture
-        const stoneTexture = createStoneTexture();
+        // Create a cartoony stone texture
+        const stoneTexture = createCartoonStoneTexture();
         
-        // Create material with the texture
-        const material = new THREE.MeshStandardMaterial({ 
+        // Create material with the texture - using MeshToonMaterial for cartoon look
+        const material = new THREE.MeshToonMaterial({ 
             map: stoneTexture,
-            roughness: 0.8,
-            metalness: 0.2
+            flatShading: true // Enable flat shading for low-poly look
         });
         
         this.mesh.material = material;
@@ -153,44 +180,47 @@ class Wall extends StaticObject {
     }
 }
 
-// Function to create stone texture for walls
-function createStoneTexture() {
+// Function to create cartoony stone texture for walls
+function createCartoonStoneTexture() {
     const canvas = document.createElement('canvas');
     canvas.width = 64;
     canvas.height = 64;
     const ctx = canvas.getContext('2d');
     
-    // Base stone color
-    ctx.fillStyle = '#808080';
+    // Base stone color - lighter grey for cartoon look
+    ctx.fillStyle = '#AAAAAA';
     ctx.fillRect(0, 0, 64, 64);
     
-    // Add stone texture variations and cracks
-    ctx.fillStyle = '#A9A9A9';
-    for (let i = 0; i < 10; i++) {
-        // Create random stone patterns
-        const x = Math.floor(Math.random() * 64);
-        const y = Math.floor(Math.random() * 64);
-        const width = Math.floor(Math.random() * 15) + 5;
-        const height = Math.floor(Math.random() * 15) + 5;
-        
+    // Draw a grid pattern for cartoon stone blocks
+    ctx.strokeStyle = '#555555';
+    ctx.lineWidth = 2;
+    
+    // Horizontal lines
+    for (let y = 0; y <= 64; y += 16) {
         ctx.beginPath();
-        ctx.rect(x, y, width, height);
-        ctx.fill();
+        ctx.moveTo(0, y);
+        ctx.lineTo(64, y);
+        ctx.stroke();
     }
     
-    // Add darker cracks
-    ctx.strokeStyle = '#696969';
-    ctx.lineWidth = 1;
-    for (let i = 0; i < 8; i++) {
-        const x1 = Math.floor(Math.random() * 64);
-        const y1 = Math.floor(Math.random() * 64);
-        const x2 = x1 + Math.floor(Math.random() * 20) - 10;
-        const y2 = y1 + Math.floor(Math.random() * 20) - 10;
-        
+    // Vertical lines with slight offsets for more interesting pattern
+    for (let x = 0; x <= 64; x += 16) {
+        const offset = (x % 32 === 0) ? 4 : 0;
         ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, 64);
         ctx.stroke();
+    }
+    
+    // Add some stone variations with simple shapes
+    ctx.fillStyle = '#CCCCCC';
+    for (let i = 0; i < 8; i++) {
+        const gridX = Math.floor(i / 2) * 16;
+        const gridY = (i % 2) * 16;
+        
+        if ((i % 3) === 0) {
+            ctx.fillRect(gridX + 4, gridY + 4, 8, 8);
+        }
     }
     
     // Create texture from canvas
